@@ -376,10 +376,10 @@ index bb9ee64..0000000
 -}
 \ No newline at end of file
 diff --git a/smarttubetv/src/main/AndroidManifest.xml b/smarttubetv/src/main/AndroidManifest.xml
-index 3a095e6..f7c754d 100644
+index 3a095e6..3affb2c 100644
 --- a/smarttubetv/src/main/AndroidManifest.xml
 +++ b/smarttubetv/src/main/AndroidManifest.xml
-@@ -173,6 +173,26 @@
+@@ -173,6 +173,30 @@
              tools:ignore="MissingClass"/>
          -->
  
@@ -400,6 +400,10 @@ index 3a095e6..f7c754d 100644
 +            android:screenOrientation="unspecified"/>
 +        <activity
 +            android:name="com.liskovsoft.smartyoutubetv2.tv.ui.liquid.LiquidAccountActivity"
++            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection"
++            android:screenOrientation="unspecified"/>
++        <activity
++            android:name="com.liskovsoft.smartyoutubetv2.tv.ui.liquid.LiquidChannelActivity"
 +            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection"
 +            android:screenOrientation="unspecified"/>
 +
@@ -966,10 +970,10 @@ index 0000000..ce150d6
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidCardAdapter.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidCardAdapter.java
 new file mode 100644
-index 0000000..397e27b
+index 0000000..a8c47c0
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidCardAdapter.java
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,142 @@
 +package com.liskovsoft.smartyoutubetv2.tv.ui.liquid;
 +
 +import android.app.Activity;
@@ -1002,14 +1006,22 @@ index 0000000..397e27b
 +
 +    private final Activity mActivity;
 +    private final Listener mListener;
-+    private final List<Video> mVideos = new ArrayList<>();
++    private final List<Video> mVideos;
++    private final Runnable mOnNearEnd;
 +
 +    public LiquidCardAdapter(Activity activity, List<Video> videos, Listener listener) {
++        this(activity, videos, listener, null);
++    }
++
++    /**
++     * @param videos liste partagée avec la rangée (la suite y est ajoutée)
++     * @param onNearEnd appelé quand on approche de la fin : charger la suite
++     */
++    public LiquidCardAdapter(Activity activity, List<Video> videos, Listener listener, Runnable onNearEnd) {
 +        mActivity = activity;
 +        mListener = listener;
-+        if (videos != null) {
-+            mVideos.addAll(videos);
-+        }
++        mVideos = videos != null ? videos : new ArrayList<>();
++        mOnNearEnd = onNearEnd;
 +    }
 +
 +    @NonNull
@@ -1022,6 +1034,11 @@ index 0000000..397e27b
 +    @Override
 +    public void onBindViewHolder(@NonNull CardHolder holder, int position) {
 +        final Video video = mVideos.get(position);
++
++        // Défilement infini : on demande la suite avant d'arriver au bout
++        if (mOnNearEnd != null && position >= getItemCount() - 4) {
++            holder.itemView.post(mOnNearEnd);
++        }
 +
 +        holder.title.setText(video.getTitle());
 +        holder.meta.setText(Liquid.meta(video));
@@ -1070,14 +1087,13 @@ index 0000000..397e27b
 +        return mVideos.size();
 +    }
 +
-+    public void addVideos(List<Video> videos) {
-+        if (videos == null || videos.isEmpty()) {
-+            return;
++    /**
++     * Les vidéos ont déjà été ajoutées à la liste partagée : on prévient l'affichage.
++     */
++    public void notifyAppended(int start, int count) {
++        if (count > 0) {
++            notifyItemRangeInserted(start, count);
 +        }
-+
-+        int start = mVideos.size();
-+        mVideos.addAll(videos);
-+        notifyItemRangeInserted(start, videos.size());
 +    }
 +
 +    static class CardHolder extends RecyclerView.ViewHolder {
@@ -1102,7 +1118,7 @@ index 0000000..397e27b
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidChannelActivity.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidChannelActivity.java
 new file mode 100644
-index 0000000..a399fb1
+index 0000000..44c4aaa
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidChannelActivity.java
 @@ -0,0 +1,259 @@
@@ -1269,7 +1285,7 @@ index 0000000..a399fb1
 +                continue;
 +            }
 +
-+            mRowsAdapter.addRow(new LiquidRowAdapter.Row(group.getTitle(), new ArrayList<>(videoGroup.getVideos())));
++            mRowsAdapter.addRow(new LiquidRowAdapter.Row(group.getTitle(), new ArrayList<>(videoGroup.getVideos()), group));
 +        }
 +
 +        mLoading.setVisibility(View.GONE);
@@ -1434,10 +1450,10 @@ index 0000000..15aa7d8
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidDetailsActivity.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidDetailsActivity.java
 new file mode 100644
-index 0000000..40eba4b
+index 0000000..e01eb2b
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidDetailsActivity.java
-@@ -0,0 +1,391 @@
+@@ -0,0 +1,428 @@
 +package com.liskovsoft.smartyoutubetv2.tv.ui.liquid;
 +
 +import android.app.Activity;
@@ -1496,6 +1512,8 @@ index 0000000..40eba4b
 +    private TextView mSubscribe;
 +    private TextView mLike;
 +    private TextView mDescription;
++    private View mOverlay;
++    private TextView mOverlayText;
 +    private TextView mCommentsEmpty;
 +    private VerticalGridView mComments;
 +    private CommentsAdapter mCommentsAdapter;
@@ -1556,6 +1574,9 @@ index 0000000..40eba4b
 +        mSubscribe = findViewById(R.id.details_subscribe);
 +        mLike = findViewById(R.id.details_like);
 +        mDescription = findViewById(R.id.details_description);
++        mOverlay = findViewById(R.id.details_overlay);
++        mOverlayText = findViewById(R.id.details_overlay_text);
++        findViewById(R.id.details_description_card).setOnClickListener(v -> showFullDescription());
 +        mCommentsEmpty = findViewById(R.id.details_comments_empty);
 +        mComments = findViewById(R.id.details_comments);
 +
@@ -1597,6 +1618,38 @@ index 0000000..40eba4b
 +        if (!mFocusComments) {
 +            play.requestFocus();
 +        }
++    }
++
++    /**
++     * Description complète dans un grand panneau en verre (haut/bas pour défiler, retour pour fermer).
++     */
++    private void showFullDescription() {
++        CharSequence text = mDescription.getText();
++
++        if (TextUtils.isEmpty(text)) {
++            return;
++        }
++
++        mOverlayText.setText(text);
++        mOverlay.setVisibility(View.VISIBLE);
++        View scroll = findViewById(R.id.details_overlay_scroll);
++        scroll.scrollTo(0, 0);
++        scroll.requestFocus();
++    }
++
++    @Override
++    public void finish() {
++        // Retour : on ferme d'abord la description complète
++        if (mOverlay != null && mOverlay.getVisibility() == View.VISIBLE) {
++            mOverlay.setVisibility(View.GONE);
++            View card = findViewById(R.id.details_description_card);
++            if (card != null) {
++                card.requestFocus();
++            }
++            return;
++        }
++
++        super.finish();
 +    }
 +
 +    @Override
@@ -1831,7 +1884,7 @@ index 0000000..40eba4b
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidHomeActivity.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidHomeActivity.java
 new file mode 100644
-index 0000000..d3483ea
+index 0000000..f535371
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidHomeActivity.java
 @@ -0,0 +1,484 @@
@@ -2161,7 +2214,7 @@ index 0000000..d3483ea
 +        }
 +
 +        String title = forcedTitle != null ? forcedTitle : group.getTitle();
-+        mRowsAdapter.addRow(new LiquidRowAdapter.Row(title, videos));
++        mRowsAdapter.addRow(new LiquidRowAdapter.Row(title, videos, group));
 +        onFirstContent();
 +    }
 +
@@ -2321,10 +2374,10 @@ index 0000000..d3483ea
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidRowAdapter.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidRowAdapter.java
 new file mode 100644
-index 0000000..8be73ea
+index 0000000..10cfdd8
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidRowAdapter.java
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,169 @@
 +package com.liskovsoft.smartyoutubetv2.tv.ui.liquid;
 +
 +import android.app.Activity;
@@ -2334,35 +2387,73 @@ index 0000000..8be73ea
 +import android.view.ViewGroup;
 +import android.widget.TextView;
 +import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
 +import androidx.leanback.widget.HorizontalGridView;
 +import androidx.recyclerview.widget.RecyclerView;
++import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
++import com.liskovsoft.sharedutils.mylogger.Log;
++import com.liskovsoft.sharedutils.rx.RxHelper;
 +import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
++import com.liskovsoft.smartyoutubetv2.common.app.models.data.VideoGroup;
 +import com.liskovsoft.smartyoutubetv2.tv.R;
++import io.reactivex.disposables.Disposable;
 +
 +import java.util.ArrayList;
 +import java.util.List;
 +
 +/**
-+ * Liquid Glass : rangées de vignettes (titre + défilement horizontal).
++ * Liquid Glass : rangées de vignettes (titre + défilement horizontal infini).
 + */
 +public class LiquidRowAdapter extends RecyclerView.Adapter<LiquidRowAdapter.RowHolder> {
++    private static final String TAG = LiquidRowAdapter.class.getSimpleName();
++
 +    public static class Row {
 +        public final String title;
 +        public final List<Video> videos;
++        /**
++         * Groupe YouTube d'origine : sert à charger la suite de la rangée (null = pas de suite)
++         */
++        @Nullable
++        MediaGroup group;
++        boolean loading;
++        @Nullable
++        LiquidCardAdapter adapter;
 +
 +        public Row(String title, List<Video> videos) {
++            this(title, videos, null);
++        }
++
++        public Row(String title, List<Video> videos, @Nullable MediaGroup group) {
 +            this.title = title;
 +            this.videos = videos != null ? videos : new ArrayList<>();
++            this.group = group;
 +        }
 +    }
 +
 +    private final Activity mActivity;
 +    private final LiquidCardAdapter.Listener mListener;
 +    private final List<Row> mRows = new ArrayList<>();
++    private final List<Disposable> mActions = new ArrayList<>();
 +
 +    public LiquidRowAdapter(Activity activity, LiquidCardAdapter.Listener listener) {
 +        mActivity = activity;
 +        mListener = listener;
++    }
++
++    public static List<Video> toVideos(MediaGroup group) {
++        List<Video> result = new ArrayList<>();
++
++        if (group == null) {
++            return result;
++        }
++
++        VideoGroup videoGroup = VideoGroup.from(group);
++
++        if (videoGroup != null && videoGroup.getVideos() != null) {
++            result.addAll(videoGroup.getVideos());
++        }
++
++        return result;
 +    }
 +
 +    @NonNull
@@ -2374,10 +2465,11 @@ index 0000000..8be73ea
 +
 +    @Override
 +    public void onBindViewHolder(@NonNull RowHolder holder, int position) {
-+        Row row = mRows.get(position);
++        final Row row = mRows.get(position);
 +        holder.title.setText(row.title);
 +        holder.title.setVisibility(TextUtils.isEmpty(row.title) ? View.GONE : View.VISIBLE);
-+        holder.cards.setAdapter(new LiquidCardAdapter(mActivity, row.videos, mListener));
++        row.adapter = new LiquidCardAdapter(mActivity, row.videos, mListener, () -> continueRow(row));
++        holder.cards.setAdapter(row.adapter);
 +    }
 +
 +    @Override
@@ -2399,8 +2491,43 @@ index 0000000..8be73ea
 +    }
 +
 +    public void clear() {
++        RxHelper.disposeActions(mActions);
++        mActions.clear();
 +        mRows.clear();
 +        notifyDataSetChanged();
++    }
++
++    /**
++     * Charge la suite d'une rangée quand on arrive au bout.
++     */
++    private void continueRow(final Row row) {
++        if (row.loading || row.group == null || row.group.getNextPageKey() == null || !Liquid.isAlive(mActivity)) {
++            return;
++        }
++
++        row.loading = true;
++        mActions.add(Liquid.service().getContentService().continueGroupObserve(row.group)
++                .subscribe(next -> {
++                    row.loading = false;
++                    row.group = next;
++                    List<Video> more = toVideos(next);
++
++                    if (more.isEmpty()) {
++                        row.group = null; // plus rien à charger
++                        return;
++                    }
++
++                    int start = row.videos.size();
++                    row.videos.addAll(more);
++
++                    if (row.adapter != null) {
++                        row.adapter.notifyAppended(start, more.size());
++                    }
++                }, error -> {
++                    row.loading = false;
++                    row.group = null;
++                    Log.e(TAG, "Row continuation error: %s", error.getMessage());
++                }, () -> row.loading = false));
 +    }
 +
 +    static class RowHolder extends RecyclerView.ViewHolder {
@@ -2422,7 +2549,7 @@ index 0000000..8be73ea
 +}
 diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidSearchActivity.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidSearchActivity.java
 new file mode 100644
-index 0000000..fc2d497
+index 0000000..bf337c6
 --- /dev/null
 +++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/ui/liquid/LiquidSearchActivity.java
 @@ -0,0 +1,273 @@
@@ -2616,7 +2743,7 @@ index 0000000..fc2d497
 +            }
 +
 +            String title = !TextUtils.isEmpty(group.getTitle()) ? group.getTitle() : getString(R.string.liquid_results);
-+            mResultsAdapter.addRow(new LiquidRowAdapter.Row(title, new ArrayList<>(videoGroup.getVideos())));
++            mResultsAdapter.addRow(new LiquidRowAdapter.Row(title, new ArrayList<>(videoGroup.getVideos()), group));
 +        }
 +
 +        mLoading.setVisibility(View.GONE);
@@ -3832,13 +3959,14 @@ index 0000000..4e8fa45
 +</LinearLayout>
 diff --git a/smarttubetv/src/main/res/layout/liquid_channel.xml b/smarttubetv/src/main/res/layout/liquid_channel.xml
 new file mode 100644
-index 0000000..561105e
+index 0000000..72b5eb1
 --- /dev/null
 +++ b/smarttubetv/src/main/res/layout/liquid_channel.xml
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,111 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Liquid Glass : page de chaîne -->
 +<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:app="http://schemas.android.com/apk/res-auto"
 +    android:layout_width="match_parent"
 +    android:layout_height="match_parent"
 +    android:background="#FF000000"
@@ -3915,6 +4043,7 @@ index 0000000..561105e
 +
 +    <androidx.leanback.widget.VerticalGridView
 +        android:id="@+id/channel_rows"
++        app:focusOutFront="true"
 +        android:layout_width="match_parent"
 +        android:layout_height="match_parent"
 +        android:layout_marginTop="140dp"
@@ -4005,10 +4134,10 @@ index 0000000..80ce445
 +</LinearLayout>
 diff --git a/smarttubetv/src/main/res/layout/liquid_details.xml b/smarttubetv/src/main/res/layout/liquid_details.xml
 new file mode 100644
-index 0000000..017ff3d
+index 0000000..ee031c5
 --- /dev/null
 +++ b/smarttubetv/src/main/res/layout/liquid_details.xml
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,272 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Liquid Glass : page vidéo (description + commentaires) -->
 +<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -4158,8 +4287,8 @@ index 0000000..017ff3d
 +                android:textSize="11sp" />
 +        </LinearLayout>
 +
-+        <ScrollView
-+            android:id="@+id/details_description_scroll"
++        <LinearLayout
++            android:id="@+id/details_description_card"
 +            android:layout_width="match_parent"
 +            android:layout_height="0dp"
 +            android:layout_marginTop="12dp"
@@ -4167,36 +4296,40 @@ index 0000000..017ff3d
 +            android:layout_weight="1"
 +            android:background="@drawable/liquid_glass"
 +            android:focusable="true"
-+            android:fadingEdgeLength="16dp"
-+            android:requiresFadingEdge="vertical"
-+            android:scrollbars="none">
++            android:foreground="@drawable/liquid_card_focus"
++            android:orientation="vertical"
++            android:padding="14dp">
 +
-+            <LinearLayout
-+                android:layout_width="match_parent"
++            <TextView
++                android:layout_width="wrap_content"
 +                android:layout_height="wrap_content"
-+                android:orientation="vertical"
-+                android:padding="14dp">
++                android:fontFamily="sans-serif-medium"
++                android:letterSpacing="0.08"
++                android:text="@string/liquid_description"
++                android:textAllCaps="true"
++                android:textColor="#B3FFFFFF"
++                android:textSize="9sp" />
 +
-+                <TextView
-+                    android:layout_width="wrap_content"
-+                    android:layout_height="wrap_content"
-+                    android:fontFamily="sans-serif-medium"
-+                    android:letterSpacing="0.08"
-+                    android:text="@string/liquid_description"
-+                    android:textAllCaps="true"
-+                    android:textColor="#B3FFFFFF"
-+                    android:textSize="9sp" />
++            <TextView
++                android:id="@+id/details_description"
++                android:layout_width="match_parent"
++                android:layout_height="0dp"
++                android:layout_marginTop="4dp"
++                android:layout_weight="1"
++                android:ellipsize="end"
++                android:lineSpacingMultiplier="1.15"
++                android:textColor="#E6FFFFFF"
++                android:textSize="11sp" />
 +
-+                <TextView
-+                    android:id="@+id/details_description"
-+                    android:layout_width="match_parent"
-+                    android:layout_height="wrap_content"
-+                    android:layout_marginTop="4dp"
-+                    android:lineSpacingMultiplier="1.15"
-+                    android:textColor="#E6FFFFFF"
-+                    android:textSize="11sp" />
-+            </LinearLayout>
-+        </ScrollView>
++            <TextView
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="4dp"
++                android:fontFamily="sans-serif-medium"
++                android:text="@string/liquid_read_more"
++                android:textColor="#B3FFFFFF"
++                android:textSize="9sp" />
++        </LinearLayout>
 +    </LinearLayout>
 +
 +    <LinearLayout
@@ -4239,16 +4372,54 @@ index 0000000..017ff3d
 +            android:clipToPadding="false"
 +            android:paddingBottom="14dp" />
 +    </LinearLayout>
++
++    <!-- Description complète, par-dessus la page -->
++    <FrameLayout
++        android:id="@+id/details_overlay"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:background="#B3000000"
++        android:clickable="true"
++        android:visibility="gone">
++
++        <ScrollView
++            android:id="@+id/details_overlay_scroll"
++            android:nextFocusDown="@id/details_overlay_scroll"
++            android:nextFocusLeft="@id/details_overlay_scroll"
++            android:nextFocusRight="@id/details_overlay_scroll"
++            android:nextFocusUp="@id/details_overlay_scroll"
++            android:layout_width="640dp"
++            android:layout_height="match_parent"
++            android:layout_gravity="center_horizontal"
++            android:layout_marginTop="36dp"
++            android:layout_marginBottom="36dp"
++            android:background="@drawable/liquid_glass_dark"
++            android:fadingEdgeLength="24dp"
++            android:focusable="true"
++            android:requiresFadingEdge="vertical"
++            android:scrollbars="none">
++
++            <TextView
++                android:id="@+id/details_overlay_text"
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:lineSpacingMultiplier="1.2"
++                android:padding="26dp"
++                android:textColor="#FFFFFFFF"
++                android:textSize="13sp" />
++        </ScrollView>
++    </FrameLayout>
 +</FrameLayout>
 diff --git a/smarttubetv/src/main/res/layout/liquid_home.xml b/smarttubetv/src/main/res/layout/liquid_home.xml
 new file mode 100644
-index 0000000..732eaca
+index 0000000..759eaef
 --- /dev/null
 +++ b/smarttubetv/src/main/res/layout/liquid_home.xml
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,212 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Liquid Glass : accueil façon Apple TV -->
 +<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:app="http://schemas.android.com/apk/res-auto"
 +    android:id="@+id/liquid_root"
 +    android:layout_width="match_parent"
 +    android:layout_height="match_parent"
@@ -4356,6 +4527,7 @@ index 0000000..732eaca
 +
 +    <androidx.leanback.widget.VerticalGridView
 +        android:id="@+id/liquid_rows"
++        app:focusOutFront="true"
 +        android:layout_width="match_parent"
 +        android:layout_height="match_parent"
 +        android:layout_marginTop="296dp"
@@ -4491,13 +4663,14 @@ index 0000000..d0f5fff
 +</LinearLayout>
 diff --git a/smarttubetv/src/main/res/layout/liquid_search.xml b/smarttubetv/src/main/res/layout/liquid_search.xml
 new file mode 100644
-index 0000000..1882cbc
+index 0000000..4744bcd
 --- /dev/null
 +++ b/smarttubetv/src/main/res/layout/liquid_search.xml
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,71 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- Liquid Glass : recherche -->
 +<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:app="http://schemas.android.com/apk/res-auto"
 +    android:layout_width="match_parent"
 +    android:layout_height="match_parent"
 +    android:background="#FF0B0B0E"
@@ -4547,6 +4720,7 @@ index 0000000..1882cbc
 +
 +        <androidx.leanback.widget.VerticalGridView
 +            android:id="@+id/search_results"
++        app:focusOutFront="true"
 +            android:layout_width="match_parent"
 +            android:layout_height="match_parent"
 +            android:layout_marginTop="8dp"
@@ -4633,7 +4807,7 @@ index 3c91586..2e139c6 100644
 +    <dimen name="lb_playback_transport_progressbar_active_radius">7dp</dimen>
  </resources>
 diff --git a/smarttubetv/src/main/res/values/strings.xml b/smarttubetv/src/main/res/values/strings.xml
-index 9d5b288..4f2d16a 100644
+index 9d5b288..201fc76 100644
 --- a/smarttubetv/src/main/res/values/strings.xml
 +++ b/smarttubetv/src/main/res/values/strings.xml
 @@ -1,8 +1,8 @@
@@ -4647,7 +4821,7 @@ index 9d5b288..4f2d16a 100644
      <string name="related_movies">Related Videos</string>
      <string name="vertical_grid_title"><![CDATA[Vertical Video Grid]]></string>
  
-@@ -118,4 +118,35 @@
+@@ -118,4 +118,36 @@
      <string name="text_post_results_title">Posts for %s</string>
      <string name="text_no_results">No results</string>
      <string name="error_message_network_needed">Oops, you need a network connection to do that!</string>
@@ -4682,6 +4856,7 @@ index 9d5b288..4f2d16a 100644
 +    <string name="liquid_sign_in_done" translatable="false">Compte connecté !</string>
 +    <string name="liquid_results" translatable="false">Résultats</string>
 +    <string name="liquid_channel" translatable="false">Chaîne</string>
++    <string name="liquid_read_more" translatable="false">OK : tout lire</string>
  </resources>
 diff --git a/smarttubetv/src/main/res/values/styles.xml b/smarttubetv/src/main/res/values/styles.xml
 index 42656c2..93a9a00 100644
