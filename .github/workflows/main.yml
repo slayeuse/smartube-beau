@@ -40,6 +40,10 @@ jobs:
           echo "keyAlias=moderne" >> keystore.properties
           echo "keyPassword=Jpr6F5YwUT9bkeva" >> keystore.properties
 
+      - name: Retirer Firebase (rapports de plantage de l'appli officielle)
+        working-directory: smarttube
+        run: rm -f smarttubetv/google-services.json
+        
       - name: Compiler l'APK
         working-directory: smarttube
         run: |
