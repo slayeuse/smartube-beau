@@ -1,0 +1,294 @@
+diff --git a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/app/presenters/dialogs/BootDialogPresenter.java b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/app/presenters/dialogs/BootDialogPresenter.java
+index ef1ad47..b74aee3 100644
+--- a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/app/presenters/dialogs/BootDialogPresenter.java
++++ b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/app/presenters/dialogs/BootDialogPresenter.java
+@@ -30,7 +30,8 @@ public class BootDialogPresenter extends BasePresenter<Void> {
+     //}
+ 
+     public void start() {
+-        startUpdatePresenter();
++        // Moderne : pas de mise à jour auto vers le SmartTube officiel
++        //startUpdatePresenter();
+     }
+ 
+     private void startUpdatePresenter() {
+diff --git a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/prefs/MainUIData.java b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/prefs/MainUIData.java
+index 8ad0b52..759abc1 100644
+--- a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/prefs/MainUIData.java
++++ b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/prefs/MainUIData.java
+@@ -421,6 +421,12 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener
+                 "App.Theme.Leanback.Blue.OLED.Browse",
+                 "App.Theme.Leanback.Blue.Preferences",
+                 mContext));
++        mColorSchemes.add(new ColorScheme(
++                R.string.color_scheme_moderne,
++                "App.Theme.Moderne.Player",
++                "App.Theme.Moderne.Browse",
++                "App.Theme.Moderne.Preferences",
++                mContext));
+     }
+ 
+     private void restoreState() {
+@@ -431,7 +437,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener
+         //mIsCardAnimatedPreviewsEnabled = Helpers.parseBoolean(split, 0, true);
+         mVideoGridScale = Helpers.parseFloat(split, 1, 1.0f); // 4 cards in a row
+         mUIScale = Helpers.parseFloat(split, 2, 1.0f);
+-        mColorSchemeIndex = Helpers.parseInt(split, 3, 1);
++        mColorSchemeIndex = Helpers.parseInt(split, 3, 8); // Moderne par défaut
+         mIsCardMultilineTitleEnabled = Helpers.parseBoolean(split, 4, true);
+         mChannelCategorySorting = Helpers.parseInt(split, 5, CHANNEL_SORTING_LAST_VIEWED);
+         mPlaylistsStyle = Helpers.parseInt(split, 6, PLAYLISTS_STYLE_GRID);
+diff --git a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/utils/Utils.java b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/utils/Utils.java
+index 4bfbe6f..33b00ce 100644
+--- a/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/utils/Utils.java
++++ b/common/src/main/java/com/liskovsoft/smartyoutubetv2/common/utils/Utils.java
+@@ -114,6 +114,7 @@ public class Utils {
+             "com.teamsmart.videomanager.tv",
+             "org.smarttube.beta",
+             "org.smarttube.stable",
++            "org.smarttube.moderne",
+             "app.smarttube.fdroid",
+     };
+     public static final String[] BACKUP_PREFS = {
+diff --git a/common/src/main/res/values/strings.xml b/common/src/main/res/values/strings.xml
+index 3498ffd..635d99e 100644
+--- a/common/src/main/res/values/strings.xml
++++ b/common/src/main/res/values/strings.xml
+@@ -636,6 +636,7 @@
+     <string name="color_scheme_blue">Blue</string>
+     <string name="color_scheme_dark_blue">Dark Blue</string>
+     <string name="color_scheme_dark_blue_oled">Dark Blue (OLED)</string>
++    <string name="color_scheme_moderne" translatable="false">Moderne</string>
+     <string name="player_speed_per_channel">Per each channel</string>
+     <string name="disable_popular_searches">Disable popular search queries</string>
+     <string name="multi_profiles">Use separate settings per each account</string>
+diff --git a/leanbackassistant/src/stbeta/res/values/strings.xml b/leanbackassistant/src/stbeta/res/values/strings.xml
+index ae82e4a..2057aee 100644
+--- a/leanbackassistant/src/stbeta/res/values/strings.xml
++++ b/leanbackassistant/src/stbeta/res/values/strings.xml
+@@ -1,5 +1,5 @@
+ <resources>
+     <string name="search_label">SmartTube</string>
+     <string name="settings_description">SmartTube Videos</string>
+-    <string translatable="false" name="search_authority">org.smarttube.beta</string>
++    <string translatable="false" name="search_authority">org.smarttube.moderne</string>
+ </resources>
+diff --git a/leanbackassistant/src/stbeta/res/xml/searchable.xml b/leanbackassistant/src/stbeta/res/xml/searchable.xml
+index ba2bae9..f51b920 100644
+--- a/leanbackassistant/src/stbeta/res/xml/searchable.xml
++++ b/leanbackassistant/src/stbeta/res/xml/searchable.xml
+@@ -18,9 +18,9 @@
+     android:label="@string/search_label"
+     android:icon="@drawable/lb_ic_in_app_search"
+     android:searchSettingsDescription="@string/settings_description"
+-    android:searchSuggestAuthority="org.smarttube.beta"
++    android:searchSuggestAuthority="org.smarttube.moderne"
+     android:searchSuggestIntentAction="android.intent.action.VIEW"
+-    android:searchSuggestIntentData="content://org.smarttube.beta/video"
++    android:searchSuggestIntentData="content://org.smarttube.moderne/video"
+     android:queryAfterZeroResults="true"
+     android:searchSuggestPath="search"
+     android:searchSuggestThreshold="0" />
+\ No newline at end of file
+diff --git a/smarttubetv/build.gradle b/smarttubetv/build.gradle
+index 23ef579..45ad003 100644
+--- a/smarttubetv/build.gradle
++++ b/smarttubetv/build.gradle
+@@ -123,7 +123,7 @@ android {
+     // https://stackoverflow.com/questions/18332474/how-to-set-versionname-in-apk-filename-using-gradle
+     applicationVariants.all { variant ->
+         variant.outputs.all { output ->
+-            def project = "SmartTube"
++            def project = "SmartTubeModerne"
+             def flavor = variant.productFlavors[-1].name.substring(2) // remove st prefix
+             def buildType = variant.buildType.name.take(1)
+             def version = variant.versionName
+@@ -160,7 +160,7 @@ android {
+     // NOTE: The main goal of prefixing a flavor is to group flavors' folders together
+     productFlavors {
+         stbeta {
+-            applicationId "org.smarttube.beta"
++            applicationId "org.smarttube.moderne"
+             targetSdkVersion project.properties.compileSdkVersion
+         }
+         ststable {
+diff --git a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/util/ViewUtil.java b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/util/ViewUtil.java
+index 3514246..6ea6d3a 100644
+--- a/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/util/ViewUtil.java
++++ b/smarttubetv/src/main/java/com/liskovsoft/smartyoutubetv2/tv/util/ViewUtil.java
+@@ -32,7 +32,7 @@ public class ViewUtil {
+     /**
+      * Focused card zoom factor
+      */
+-    public static final int FOCUS_ZOOM_FACTOR = FocusHighlight.ZOOM_FACTOR_SMALL;
++    public static final int FOCUS_ZOOM_FACTOR = FocusHighlight.ZOOM_FACTOR_MEDIUM;
+     //public static final int FOCUS_ZOOM_FACTOR = FocusHighlight.ZOOM_FACTOR_NONE;
+     /**
+      * Dim focused card?
+diff --git a/smarttubetv/src/main/res/drawable/moderne_background.xml b/smarttubetv/src/main/res/drawable/moderne_background.xml
+new file mode 100644
+index 0000000..a11b731
+--- /dev/null
++++ b/smarttubetv/src/main/res/drawable/moderne_background.xml
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Thème Moderne : fond sombre avec une lueur violette en haut, façon Apple TV / Netflix -->
++<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
++    <item>
++        <shape android:shape="rectangle">
++            <gradient
++                android:angle="270"
++                android:startColor="@color/moderne_bg_top"
++                android:centerColor="@color/moderne_bg_mid"
++                android:endColor="@color/moderne_bg_bottom"
++                android:type="linear" />
++        </shape>
++    </item>
++    <item>
++        <shape android:shape="rectangle">
++            <gradient
++                android:angle="315"
++                android:startColor="@color/moderne_glow"
++                android:centerColor="#00000000"
++                android:endColor="#00000000"
++                android:type="linear" />
++        </shape>
++    </item>
++</layer-list>
+diff --git a/smarttubetv/src/main/res/drawable/progress_bar_moderne.xml b/smarttubetv/src/main/res/drawable/progress_bar_moderne.xml
+new file mode 100644
+index 0000000..5584a0c
+--- /dev/null
++++ b/smarttubetv/src/main/res/drawable/progress_bar_moderne.xml
+@@ -0,0 +1,17 @@
++<?xml version="1.0" encoding="utf-8"?>
++<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
++    <item android:id="@android:id/background">
++        <shape>
++            <corners android:radius="2dp"/>
++            <solid android:color="@color/white_20"/>
++        </shape>
++    </item>
++    <item android:id="@android:id/progress">
++        <clip>
++            <shape>
++                <corners android:radius="2dp"/>
++                <solid android:color="@color/moderne_accent"/>
++            </shape>
++        </clip>
++    </item>
++</layer-list>
+diff --git a/smarttubetv/src/main/res/values/colors.xml b/smarttubetv/src/main/res/values/colors.xml
+index dfc7d18..cb58a24 100644
+--- a/smarttubetv/src/main/res/values/colors.xml
++++ b/smarttubetv/src/main/res/values/colors.xml
+@@ -68,4 +68,16 @@
+     <color name="lb_speech_orb_not_recording">@color/orb_color</color>
+     <color name="lb_speech_orb_not_recording_pulsed">@color/orb_bright_color</color>
+     <color name="lb_speech_orb_not_recording_icon">@color/orb_icon_color</color>
++
++    <!-- Thème Moderne -->
++    <color name="moderne_bg_top">#1B1530</color>
++    <color name="moderne_bg_mid">#0E0D18</color>
++    <color name="moderne_bg_bottom">#060609</color>
++    <color name="moderne_glow">#33FF4D6A</color>
++    <color name="moderne_sidebar">#CC0B0A12</color>
++    <color name="moderne_card">#1E1D2A</color>
++    <color name="moderne_card_selected">#FFFFFF</color>
++    <color name="moderne_accent">#FF4D6A</color>
++    <color name="moderne_accent_light">#80FF4D6A</color>
++    <color name="moderne_dialog">#16151F</color>
+ </resources>
+diff --git a/smarttubetv/src/main/res/values/dimens.xml b/smarttubetv/src/main/res/values/dimens.xml
+index 3c91586..09faf63 100644
+--- a/smarttubetv/src/main/res/values/dimens.xml
++++ b/smarttubetv/src/main/res/values/dimens.xml
+@@ -81,7 +81,7 @@
+     You can also override ShadowOverlayHelper.Options createShadowOverlayOptions() in
+     ListRowPresenter which gives you some ability to change corner radius and focused and unfocused z.
+     -->
+-    <dimen name="lb_rounded_rect_corner_radius">12dp</dimen>
++    <dimen name="lb_rounded_rect_corner_radius">14dp</dimen>
+ 
+     <!-- MOD: Zoom factor of focused button (SearchOrbView, default: 120%) -->
+     <!--<item name="lb_search_orb_focused_zoom" type="fraction">120%</item>-->
+@@ -95,8 +95,8 @@
+     -->
+     <!--<dimen name="lb_browse_item_horizontal_spacing">15dp</dimen>-->
+     <!--<dimen name="lb_browse_item_vertical_spacing">15dp</dimen>-->
+-    <dimen name="grid_item_horizontal_spacing">15dp</dimen>
+-    <dimen name="grid_item_vertical_spacing">15dp</dimen>
++    <dimen name="grid_item_horizontal_spacing">20dp</dimen>
++    <dimen name="grid_item_vertical_spacing">22dp</dimen>
+     <dimen name="grid_horizontal_margin">25dp</dimen>
+ 
+     <!-- Browse headers spacing. Origin: 21dp -->
+diff --git a/smarttubetv/src/main/res/values/strings.xml b/smarttubetv/src/main/res/values/strings.xml
+index 9d5b288..e275801 100644
+--- a/smarttubetv/src/main/res/values/strings.xml
++++ b/smarttubetv/src/main/res/values/strings.xml
+@@ -1,8 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
+     <!-- NOTE: Please don't translate this file. All strings have been moved to the common module. -->
+-    <string translatable="false" name="app_name"><![CDATA[SmartTube]]></string>
+-    <string translatable="false" name="browse_title"><![CDATA[SmartTube]]></string>
++    <string translatable="false" name="app_name"><![CDATA[SmartTube Moderne]]></string>
++    <string translatable="false" name="browse_title"><![CDATA[SmartTube Moderne]]></string>
+     <string name="related_movies">Related Videos</string>
+     <string name="vertical_grid_title"><![CDATA[Vertical Video Grid]]></string>
+ 
+diff --git a/smarttubetv/src/main/res/values/styles.xml b/smarttubetv/src/main/res/values/styles.xml
+index 42656c2..4fd4b23 100644
+--- a/smarttubetv/src/main/res/values/styles.xml
++++ b/smarttubetv/src/main/res/values/styles.xml
+@@ -248,4 +248,47 @@
+         <item name="cardSelectedBackground">@color/card_selected_background_white_grey</item>
+     </style>
+     <!--  End Color scheme: Dark Blue (OLED)  -->
+-</resources>
+\ No newline at end of file
++
++    <!--  Color scheme: Moderne (style Netflix / Apple TV)  -->
++    <style name="Moderne.CardTitle" parent="Widget.Leanback.ImageCardView.TitleStyle">
++        <item name="android:fontFamily">sans-serif-medium</item>
++        <item name="android:letterSpacing" tools:targetApi="21">0.01</item>
++    </style>
++    <style name="Moderne.CardContent" parent="Widget.Leanback.ImageCardView.ContentStyle">
++        <item name="android:fontFamily">sans-serif</item>
++        <item name="android:alpha">0.75</item>
++    </style>
++    <style name="ProgressBarHorizontal.Moderne" parent="@android:style/Widget.ProgressBar.Horizontal">
++        <item name="android:progressDrawable">@drawable/progress_bar_moderne</item>
++    </style>
++    <style name="App.Theme.Moderne.Browse" parent="App.Theme.Leanback.Browse">
++        <item name="android:windowBackground">@drawable/moderne_background</item>
++        <item name="shelfBackground">@drawable/moderne_background</item>
++        <item name="brandColor">@color/moderne_sidebar</item>
++        <item name="brandAccentColor">@color/moderne_accent</item>
++        <item name="cardDefaultBackground">@color/moderne_card</item>
++        <item name="cardSelectedBackground">@color/moderne_card_selected</item>
++        <item name="cardProgressStyle">@style/ProgressBarHorizontal.Moderne</item>
++        <item name="appLogo">@mipmap/app_logo_semi_red</item>
++        <item name="imageCardViewTitleStyle">@style/Moderne.CardTitle</item>
++        <item name="imageCardViewContentStyle">@style/Moderne.CardContent</item>
++        <item name="android:colorAccent" tools:targetApi="21">@color/moderne_accent</item>
++    </style>
++    <style name="App.Theme.Moderne.Player" parent="App.Theme.Leanback.Player">
++        <item name="playbackProgressPrimaryColor">@color/moderne_accent</item>
++        <item name="playbackProgressSecondaryColor">@color/moderne_accent_light</item>
++        <item name="playbackControlsIconHighlightColor">@color/moderne_accent</item>
++        <item name="shelfBackground">@drawable/moderne_background</item>
++        <item name="cardDefaultBackground">@color/moderne_card</item>
++        <item name="cardSelectedBackground">@color/moderne_card_selected</item>
++        <item name="cardProgressStyle">@style/ProgressBarHorizontal.Moderne</item>
++        <item name="imageCardViewTitleStyle">@style/Moderne.CardTitle</item>
++        <item name="imageCardViewContentStyle">@style/Moderne.CardContent</item>
++        <item name="android:colorAccent" tools:targetApi="21">@color/moderne_accent</item>
++    </style>
++    <style name="App.Theme.Moderne.Preferences" parent="App.Theme.Leanback.Preferences">
++        <item name="android:colorPrimary" tools:targetApi="21">@color/moderne_dialog</item>
++        <item name="android:colorAccent" tools:targetApi="21">@color/moderne_accent</item>
++    </style>
++    <!--  End Color scheme: Moderne  -->
++</resources>
