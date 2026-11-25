@@ -1,0 +1,56 @@
+name: Compiler SmartTube Moderne
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer mes fichiers (patch + clé)
+        uses: actions/checkout@v4
+        with:
+          path: moderne
+
+      - name: Récupérer le code de SmartTube (version testée)
+        uses: actions/checkout@v4
+        with:
+          repository: yuliskov/SmartTube
+          ref: b6a1c8221fa395f91786d29202454b864df2a91e
+          submodules: recursive
+          path: smarttube
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Appliquer le thème Moderne
+        working-directory: smarttube
+        run: git apply --whitespace=nowarn ../moderne/moderne.patch
+
+      - name: Configurer la signature
+        working-directory: smarttube
+        run: |
+          echo "storeFile=${{ github.workspace }}/moderne/smarttube-moderne.jks" > keystore.properties
+          echo "storePassword=Jpr6F5YwUT9bkeva" >> keystore.properties
+          echo "keyAlias=moderne" >> keystore.properties
+          echo "keyPassword=Jpr6F5YwUT9bkeva" >> keystore.properties
+
+      - name: Compiler l'APK
+        working-directory: smarttube
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleStbetaRelease
+
+      - name: Mettre l'APK à télécharger
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartTubeModerne-APK
+          path: |
+            smarttube/smarttubetv/build/outputs/apk/stbeta/release/*_armeabi-v7a.apk
+            smarttube/smarttubetv/build/outputs/apk/stbeta/release/*_universal.apk
+          if-no-files-found: error
